@@ -7,11 +7,10 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/eks"
+	gversion "github.com/hashicorp/go-version"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"github.com/terraform-providers/terraform-provider-aws/aws/internal/keyvaluetags"
-	gversion "github.com/hashicorp/go-version"
 )
 
 func dataSourceAwsEksAddonVersion() *schema.Resource {
@@ -42,7 +41,6 @@ func dataSourceAwsEksAddonVersion() *schema.Resource {
 
 func dataSourceAwsEksAddonVersionRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	conn := meta.(*AWSClient).eksconn
-	ignoreTagsConfig := meta.(*AWSClient).IgnoreTagsConfig
 
 	addonName := d.Get("addon_name").(string)
 	kubernetesVersion := d.Get("kubernetes_version").(string)
@@ -52,7 +50,6 @@ func dataSourceAwsEksAddonVersionRead(ctx context.Context, d *schema.ResourceDat
 		AddonName:         aws.String(addonName),
 		KubernetesVersion: aws.String(kubernetesVersion),
 	}
-
 
 	output, err := conn.DescribeAddonVersionsWithContext(ctx, input)
 	if err != nil {
@@ -66,9 +63,10 @@ func dataSourceAwsEksAddonVersionRead(ctx context.Context, d *schema.ResourceDat
 	var versions []*gversion.Version
 
 	for _, addonVersionInfo := range output.Addons[0].AddonVersions {
-		v, err := parseVersion(*addonVersionInfo.AddonVersion)
+		// v, err := parseVersion(*addonVersionInfo.AddonVersion)
+		v, err := gversion.NewVersion(*addonVersionInfo.AddonVersion)
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("error reading EKS Addon Version for (%s): %w"), addonName, err)
+			return diag.FromErr(fmt.Errorf("error reading EKS Addon Version for (%s): %w", addonName, err))
 		}
 		// If defaultVersion is true look for default addon version for given
 		// Kubernetes version. Default version is the Addon Verison used for EKS when
@@ -92,7 +90,6 @@ func dataSourceAwsEksAddonVersionRead(ctx context.Context, d *schema.ResourceDat
 	sort.SliceStable(versions, func(i, j int) bool {
 		return versions[j].LessThan(versions[i])
 	})
-	
 
 	d.SetId(fmt.Sprintf("%s:%s", addonName, kubernetesVersion))
 	d.Set("addon_version", versions[0].Original())
@@ -100,10 +97,10 @@ func dataSourceAwsEksAddonVersionRead(ctx context.Context, d *schema.ResourceDat
 	return nil
 }
 
-func parseVersion(v string) (*gversion.Version, error) {
-	version, err := gversion.NewVersion(v)
-	if err != nil {
-		return nil, err
-	}
-	return version, nil
-}
+//func parseVersion(v string) (*gversion.Version, error) {
+//	version, err := gversion.NewVersion(v)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return version, nil
+//}
